@@ -16,29 +16,51 @@ except ImportError:
 
 # --- 耗材主数据 ---
 FILAMENT_MASTER_DATA = [
-    {"Name": "PLA", "Id": "AHPLBK-101"}, {"Name": "PLA+", "Id": "AHPLPBK-102"},
-    {"Name": "PETG", "Id": ""}, {"Name": "ABS", "Id": "SHABBK-102"},
-    {"Name": "TPU", "Id": "STPBK-101"}, {"Name": "ASA", "Id": ""},
-    {"Name": "PLA Glow", "Id": ""}, {"Name": "PLA High Speed", "Id": "AHHSBK-103"},
-    {"Name": "PLA Marble", "Id": ""}, {"Name": "PLA Matte", "Id": "HYGBK-102"},
-    {"Name": "PLA SE", "Id": ""}, {"Name": "PLA Silk", "Id": "AHSCWH-102"},
+    {"Name": "PLA", "Id": "AHPLBK-101"},
+    {"Name": "PLA+", "Id": "AHPLPBK-102"},
+    {"Name": "PETG", "Id": "AHPETG-001"},
+    {"Name": "ABS", "Id": "SHABBK-102"},
+    {"Name": "TPU", "Id": "STPBK-101"},
+    {"Name": "ASA", "Id": "AHASA-001"},
+    {"Name": "PA", "Id": "AHPA-001"},
+    {"Name": "PC", "Id": "AHPC-001"},
+    {"Name": "PLA Glow", "Id": "AHPLG-001"},
+    {"Name": "PLA High Speed", "Id": "AHHSBK-103"},
+    {"Name": "PLA Marble", "Id": "AHPLM-001"},
+    {"Name": "PLA Matte", "Id": "HYGBK-102"},
+    {"Name": "PLA SE", "Id": "AHPLSE-001"},
+    {"Name": "PLA Silk", "Id": "AHSCWH-102"},
 ]
 
 COLOR_DB = [
-    {"name_cn": "柔和桃", "value": "#FFC196"}, {"name_cn": "星际紫", "value": "#5B618F"},
-    {"name_cn": "青金石蓝", "value": "#009CBD"}, {"name_cn": "春叶绿", "value": "#89A84F"},
-    {"name_cn": "鲜红", "value": "#F40031"}, {"name_cn": "橙色", "value": "#FF6A14"},
-    {"name_cn": "暖橙", "value": "#FFA761"}, {"name_cn": "黄色", "value": "#FED141"},
-    {"name_cn": "柠檬黄", "value": "#FFEC3D"}, {"name_cn": "草绿", "value": "#5CE003"},
-    {"name_cn": "绿色", "value": "#00BB31"}, {"name_cn": "深绿", "value": "#008080"},
-    {"name_cn": "天蓝", "value": "#87CEEB"}, {"name_cn": "青色", "value": "#0086D6"},
-    {"name_cn": "蓝色", "value": "#0047BB"}, {"name_cn": "紫色", "value": "#6558B1"},
-    {"name_cn": "粉色", "value": "#EF60A3"}, {"name_cn": "紫红", "value": "#EE00EE"},
-    {"name_cn": "洋红", "value": "#EC008C"}, {"name_cn": "红色", "value": "#BA0C2F"},
-    {"name_cn": "米色", "value": "#F7E6DE"}, {"name_cn": "木色", "value": "#C0A392"},
-    {"name_cn": "焦橙", "value": "#8C3400"}, {"name_cn": "金色", "value": "#E4BC67"},
-    {"name_cn": "白色", "value": "#FFFFFF"}, {"name_cn": "银色", "value": "#9EA6B4"},
-    {"name_cn": "灰色", "value": "#75787B"}, {"name_cn": "黑色", "value": "#212721"},
+    {"name_cn": "柔和桃", "value": "#FFC196", "color":[255,193,150]},
+    {"name_cn": "星际紫", "value": "#5B618F", "color":[91,97,143]},
+    {"name_cn": "青金石蓝", "value": "#009CBD", "color":[0,156,189]},
+    {"name_cn": "春叶绿", "value": "#89A84F", "color":[137,168,79]},
+    {"name_cn": "鲜红", "value": "#F40031", "color":[244,0,49]},
+    {"name_cn": "橙色", "value": "#FF6A14", "color":[255,106,20]},
+    {"name_cn": "暖橙", "value": "#FFA761", "color":[255,167,97]},
+    {"name_cn": "黄色", "value": "#FED141", "color":[254,209,65]},
+    {"name_cn": "柠檬黄", "value": "#FFEC3D", "color":[255,236,61]},
+    {"name_cn": "草绿", "value": "#5CE003", "color":[92,224,3]},
+    {"name_cn": "绿色", "value": "#00BB31", "color":[0,187,49]},
+    {"name_cn": "深绿", "value": "#008080", "color":[0,128,128]},
+    {"name_cn": "天蓝", "value": "#87CEEB", "color":[135,206,235]},
+    {"name_cn": "青色", "value": "#0086D6", "color":[0,134,214]},
+    {"name_cn": "蓝色", "value": "#0047BB", "color":[0,71,187]},
+    {"name_cn": "紫色", "value": "#6558B1", "color":[101,88,177]},
+    {"name_cn": "粉色", "value": "#EF60A3", "color":[239,96,163]},
+    {"name_cn": "紫红", "value": "#EE00EE", "color":[238,0,238]},
+    {"name_cn": "洋红", "value": "#EC008C", "color":[236,0,140]},
+    {"name_cn": "红色", "value": "#BA0C2F", "color":[186,12,47]},
+    {"name_cn": "米色", "value": "#F7E6DE", "color":[247,230,222]},
+    {"name_cn": "木色", "value": "#C0A392", "color":[192,163,146]},
+    {"name_cn": "焦橙", "value": "#8C3400", "color":[140,52,0]},
+    {"name_cn": "金色", "value": "#E4BC67", "color":[228,188,103]},
+    {"name_cn": "白色", "value": "#FFFFFF", "color":[255,255,255]},
+    {"name_cn": "银色", "value": "#9EA6B4", "color":[158,166,180]},
+    {"name_cn": "灰色", "value": "#75787B", "color":[117,120,123]},
+    {"name_cn": "黑色", "value": "#212721", "color":[33,39,33]},
 ]
 
 class RFIDWorker(QThread):
@@ -100,33 +122,70 @@ class AnycubicRFIDTool(QMainWindow):
 
         main_lay.addWidget(QLabel("1. 配置材质类型", styleSheet=label_style))
         self.combo_mat = QComboBox()
-        self.combo_mat.setMaxVisibleItems(12)
+        # 1. 强制使用列表视图，这是实现 Web 样式的关键
+        self.combo_mat.setView(QListView())
         self.combo_mat.setFixedHeight(50)
-        # --- 针对选中遮挡问题的终极 CSS 修复 ---
+
+        # 2. 样式表：实现右侧带箭头的 Web 风格
         self.combo_mat.setStyleSheet("""
             QComboBox { 
-                border: 2px solid #EEE; border-radius: 10px; padding-left: 15px; 
-                font-size: 16px; font-weight: 500; background: white; 
+                border: 2px solid #EEE; 
+                border-radius: 10px; 
+                padding-left: 15px; 
+                font-size: 16px; 
+                font-weight: 500; 
+                background: white; 
+                /* 关键：0 强制向下弹出，不遮挡输入框 */
+                combobox-popup: 0;
             }
             QComboBox:hover { border-color: #0078D4; }
-            QComboBox::drop-down { border: none; width: 35px; }
+
+            /* 右侧下拉按钮区域 */
+            QComboBox::drop-down { 
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 30px; 
+                border-left: 1px solid #EEE; /* 按钮左侧的分隔线 */
+                border-top-right-radius: 10px;
+                border-bottom-right-radius: 10px;
+            }
+
+            /* 下拉箭头图标 (使用一个简单的 V 字型字符或自定义图形) */
+            QComboBox::down-arrow { 
+                image: none; /* 禁用系统图标 */
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #999; /* 用边框拼出一个小三角 */
+                margin-top: 2px;
+            }
+            QComboBox::down-arrow:on { border-top-color: #0078D4; }
+
+            /* 下拉列表容器 */
             QComboBox QAbstractItemView {
-                border: 1px solid #DDD; background: white; outline: none;
+                border: 1px solid #DDD; 
+                background: white; 
+                outline: none;
+                selection-background-color: #0078D4;
+                selection-color: #FFFFFF;
+                padding: 5px 0px;
             }
             QComboBox QAbstractItemView::item {
-                height: 40px; padding-left: 10px; color: #333;
+                height: 40px; 
+                padding-left: 10px; 
+                color: #333;
             }
             QComboBox QAbstractItemView::item:selected {
-                background-color: #0078D4; color: #FFFFFF; /* 强制白字蓝底 */
-            }
-            QComboBox QAbstractItemView::item:hover {
                 background-color: #0078D4; color: #FFFFFF;
             }
         """)
-        # 强制设置代理以确保 CSS 生效
+
+        # 3. 配置显示行为：如果条目多，显示滚动条，但限制高度
+        self.combo_mat.setMaxVisibleItems(10) # 即使耗材超过12个，也会限制高度并显示滚动条
         self.combo_mat.setItemDelegate(QStyledItemDelegate())
+
         for item in FILAMENT_MASTER_DATA:
-            self.combo_mat.addItem(item["Name"], item) 
+            self.combo_mat.addItem(item["Name"], item)
+
         main_lay.addWidget(self.combo_mat)
 
         main_lay.addWidget(QLabel("2. 官方颜色选择", styleSheet=label_style))
@@ -248,19 +307,57 @@ class AnycubicRFIDTool(QMainWindow):
             self.log("SUCCESS", f"读取完成：{mat} / {color_name}")
         except: self.log("WARN", "通讯异常")
 
+    # --------- 修改后的写入逻辑 ---------
     def write_tag_logic(self):
         conn = self.get_conn()
         if not conn: return
-        mat_info = self.combo_mat.currentData(); col_info = self.selected_color_info
+        mat_info = self.combo_mat.currentData()
+        col_info = self.selected_color_info
         if col_info['name_cn'] == "未选择": return
         try:
             conn.connect()
-            m_b = list(mat_info['Name'].encode('ascii'))
-            conn.transmit([0xFF, 0xD6, 0x00, 0x0E, 0x04] + (m_b + [0]*4)[:4])
-            r, g, b = int(col_info['value'][1:3], 16), int(col_info['value'][3:5], 16), int(col_info['value'][5:7], 16)
-            conn.transmit([0xFF, 0xD6, 0x00, 0x13, 0x04, r, g, b, 0xD4])
-            self.log("SUCCESS", f"写入完成：{mat_info['Name']} - {col_info['name_cn']}")
-        except: self.log("WARN", "写入失败")
 
+            # --- 固定参数 ---
+            brand = "Anycubic"
+            diameter = 1.75  # mm
+            length = 1000    # g
+            hotbed_temp = 60 # 默认
+            nozzle_temp = 200 # 可测试修改，默认200
+
+            # --- 写入 SKU (Page 5~8) ---
+            sku_bytes = list(mat_info["Id"].encode("ascii")) if mat_info["Id"] else [0]*4
+            conn.transmit([0xFF, 0xD6, 0x00, 0x04, 0x04] + (sku_bytes + [0]*4)[:4])
+
+            # --- 写入 Brand (Page 10~13) ---
+            brand_bytes = list(brand.encode("ascii"))
+            conn.transmit([0xFF, 0xD6, 0x00, 0x0A, 0x04] + (brand_bytes + [0]*4)[:4])
+
+            # --- 写入 Type (Page 15~18) ---
+            type_bytes = list(mat_info["Name"].encode("ascii"))
+            conn.transmit([0xFF, 0xD6, 0x00, 0x0F, 0x04] + (type_bytes + [0]*4)[:4])
+
+            # --- 写入 颜色 ABGR (Page 20) ---
+            r, g, b = int(col_info['value'][1:3],16), int(col_info['value'][3:5],16), int(col_info['value'][5:7],16)
+            conn.transmit([0xFF, 0xD6, 0x00, 0x14, 0x04, b, g, r, 0x00])
+
+            # --- Page 24: 材质类型占位 ---
+            mat_type_byte = 0x01 if "PLA" in mat_info["Name"] else 0x02
+            conn.transmit([0xFF,0xD6,0x00,0x18,0x04, mat_type_byte, 0x00, 0x00, 0x00])
+
+            # --- Page 29: 额外参数模板 (默认0) ---
+            conn.transmit([0xFF,0xD6,0x00,0x1D,0x04, 0x00, 0x00, 0x00, 0x00])
+
+            # --- Page 30: 保留位模板 (默认0) ---
+            conn.transmit([0xFF,0xD6,0x00,0x1E,0x04, 0x00, 0x00, 0x00, 0x00])
+
+            # --- 写入直径/长度/温度 (Page 25~28) ---
+            diam_byte = int(diameter*100)  # 1.75 -> 175
+            length_byte = length // 10      # 1000g -> 100
+            conn.transmit([0xFF,0xD6,0x00,0x19,0x04, diam_byte, length_byte, hotbed_temp, nozzle_temp])
+
+            self.log("SUCCESS", f"写入完成：{mat_info['Name']} - {col_info['name_cn']} | 品牌: {brand}")
+        except:
+            self.log("WARN", "写入失败")
+            
 if __name__ == "__main__":
     app = QApplication(sys.argv); app.setStyle("Fusion"); win = AnycubicRFIDTool(); win.show(); sys.exit(app.exec())
