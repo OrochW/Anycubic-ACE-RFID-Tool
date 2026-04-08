@@ -296,45 +296,38 @@ class AnycubicRFIDTool(QMainWindow):
 
     def read_tag_logic(self, manual=False):
         if not self.current_tag_ready:
-            if manual:
-                self.log("WARN", "当前没有标签，无法读取")
+            if manual: self.log("WARN", "当前没有标签，无法读取")
             return
-
         conn = self.get_conn()
-        if not conn:
-            return
-
+        if not conn: return
         try:
             conn.connect()
-
-            # --- 读取 SKU (Page 5~8) ---
-            r_sku, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x04, 0x04])
+            # --- 1. 读取 SKU (从 Page 5 开始，读取 3 页共 12 字节) ---
+            r_sku, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x05, 0x0C])
             mat_name = "未知耗材"
             if s1 == 0x90:
-                # 只取前 4 个字节匹配写入的 ID
-                mat_id_bytes = r_sku[:4]
-                mat_id = "".join([chr(b) for b in mat_id_bytes if 32 <= b <= 126]).strip()
+                # 提取可见字符并拼接
+                mat_id = "".join([chr(b) for b in r_sku if 32 <= b <= 126]).strip()
+                # 打印一下实际读到的 ID 到日志，方便调试
+                # self.log("INFO", f"Tag SKU: {mat_id}") 
                 for item in FILAMENT_MASTER_DATA:
-                    if item["Id"].startswith(mat_id):  # 用前缀匹配
+                    if item["Id"] and (item["Id"] in mat_id):
                         mat_name = item["Name"]
-                        idx = self.combo_mat.findText(mat_name)
-                        if idx >= 0:
-                            self.combo_mat.setCurrentIndex(idx)
                         break
-
-            # --- 读取颜色 (Page 20, ABGR) ---
+            
+            # --- 2. 读取颜色 (Page 20, ABGR) ---
             r_color, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x14, 0x04])
-            color_name = "未知颜色"
-            if s1 == 0x90 and len(r_color) >= 3:
-                hex_v = f"#{r_color[2]:02X}{r_color[1]:02X}{r_color[0]:02X}".upper()
+            color_name = "未选择颜色"
+            if s1 == 0x90 and len(r_color) >= 4:
+                # 根据文档 ABGR: r_color[0]=A, r_color[1]=B, r_color[2]=G, r_color[3]=R
+                # 我们匹配需要的是 RGB
+                hex_v = f"#{r_color[3]:02X}{r_color[2]:02X}{r_color[1]:02X}".upper()
                 for c in COLOR_DB:
                     if c['value'].upper() == hex_v:
-                        self.on_color_selected(c)
                         color_name = c['name_cn']
                         break
 
             self.log("SUCCESS", f"读取完成：{mat_name} / {color_name}")
-
         except:
             self.log("WARN", "通讯异常")
 
@@ -352,48 +345,41 @@ class AnycubicRFIDTool(QMainWindow):
             return
         try:
             conn.connect()
+            # --- Page 4: Magic Byte (根据文档写入 7B 00 65 00) ---
+            conn.transmit([0xFF, 0xD6, 0x00, 0x04, 0x04, 0x7B, 0x00, 0x65, 0x00])
 
-            # --- 固定参数 ---
-            brand = "Anycubic"
-            diameter = 1.75  # mm
-            length = 1000    # g
-            hotbed_temp = 60 # 默认
-            nozzle_temp = 200 # 可测试修改，默认200
+            # --- Page 5-7: SKU (分 3 次写入) ---
+            sku_str = mat_info["Id"].ljust(12, '\x00')
+            sku_bytes = list(sku_str.encode("ascii"))
+            for i in range(3):
+                conn.transmit([0xFF, 0xD6, 0x00, 0x05 + i, 0x04] + sku_bytes[i*4:(i+1)*4])
 
-            # --- 写入 SKU (Page 5~8) ---
-            sku_bytes = list(mat_info["Id"].encode("ascii")) if mat_info["Id"] else [0]*4
-            conn.transmit([0xFF, 0xD6, 0x00, 0x04, 0x04] + (sku_bytes + [0]*4)[:4])
+            # --- Page 10: Brand (AC) ---
+            conn.transmit([0xFF, 0xD6, 0x00, 0x0A, 0x04, 0x41, 0x43, 0x00, 0x00])
 
-            # --- 写入 Brand (Page 10~13) ---
-            brand_bytes = list(brand.encode("ascii"))
-            conn.transmit([0xFF, 0xD6, 0x00, 0x0A, 0x04] + (brand_bytes + [0]*4)[:4])
+            # --- Page 15: Type (材质简写) ---
+            type_bytes = (list(mat_info["Name"].encode("ascii")) + [0]*4)[:4]
+            conn.transmit([0xFF, 0xD6, 0x00, 0x0F, 0x04] + type_bytes)
 
-            # --- 写入 Type (Page 15~18) ---
-            type_bytes = list(mat_info["Name"].encode("ascii"))
-            conn.transmit([0xFF, 0xD6, 0x00, 0x0F, 0x04] + (type_bytes + [0]*4)[:4])
-
-            # --- 写入 颜色 ABGR (Page 20) ---
+            # --- Page 20: 颜色 ABGR (Alpha固定00) ---
             r, g, b = int(col_info['value'][1:3],16), int(col_info['value'][3:5],16), int(col_info['value'][5:7],16)
-            conn.transmit([0xFF, 0xD6, 0x00, 0x14, 0x04, b, g, r, 0x00])
+            conn.transmit([0xFF, 0xD6, 0x00, 0x14, 0x04, 0x00, b, g, r])
 
-            # --- Page 24: 材质类型占位 ---
-            mat_type_byte = 0x01 if "PLA" in mat_info["Name"] else 0x02
-            conn.transmit([0xFF,0xD6,0x00,0x18,0x04, mat_type_byte, 0x00, 0x00, 0x00])
+            # --- Page 24: 喷嘴温度 (根据文档 Min C8 00 / Max D2 00) ---
+            # C8=200, D2=210
+            conn.transmit([0xFF, 0xD6, 0x00, 0x18, 0x04, 0xC8, 0x00, 0xD2, 0x00])
 
-            # --- Page 29: 额外参数模板 (默认0) ---
-            conn.transmit([0xFF,0xD6,0x00,0x1D,0x04, 0x00, 0x00, 0x00, 0x00])
+            # --- Page 29: 热床温度 (根据文档 Min 32 00 / Max 3C 00) ---
+            # 32=50, 3C=60
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1D, 0x04, 0x32, 0x00, 0x3C, 0x00])
 
-            # --- Page 30: 保留位模板 (默认0) ---
-            conn.transmit([0xFF,0xD6,0x00,0x1E,0x04, 0x00, 0x00, 0x00, 0x00])
+            # --- Page 30: 耗材参数 (直径 AF 00 / 长度 4A 01) ---
+            # AF 00 = 175 (1.75mm), 4A 01 = 330 (克数? 根据文档保持即可)
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1E, 0x04, 0xAF, 0x00, 0x4A, 0x01])
 
-            # --- 写入直径/长度/温度 (Page 25~28) ---
-            diam_byte = int(diameter*100)  # 1.75 -> 175
-            length_byte = length // 10      # 1000g -> 100
-            conn.transmit([0xFF,0xD6,0x00,0x19,0x04, diam_byte, length_byte, hotbed_temp, nozzle_temp])
+            self.log("SUCCESS", f"写入完成：{mat_info['Name']} - {col_info['name_cn']}")
+        except Exception as e:
+            self.log("WARN", f"写入失败: {str(e)}")
 
-            self.log("SUCCESS", f"写入完成：{mat_info['Name']} - {col_info['name_cn']} | 品牌: {brand}")
-        except:
-            self.log("WARN", "写入失败")
-            
 if __name__ == "__main__":
     app = QApplication(sys.argv); app.setStyle("Fusion"); win = AnycubicRFIDTool(); win.show(); sys.exit(app.exec())
