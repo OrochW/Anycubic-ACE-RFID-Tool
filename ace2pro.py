@@ -302,29 +302,28 @@ class AnycubicRFIDTool(QMainWindow):
         if not conn: return
         try:
             conn.connect()
-            # --- 1. 读取 SKU (从 Page 5 开始，读取 3 页共 12 字节) ---
+            # --- 1. 读取 SKU (Page 5~7) ---
             r_sku, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x05, 0x0C])
             mat_name = "未知耗材"
             if s1 == 0x90:
-                # 提取可见字符并拼接
                 mat_id = "".join([chr(b) for b in r_sku if 32 <= b <= 126]).strip()
-                # 打印一下实际读到的 ID 到日志，方便调试
-                # self.log("INFO", f"Tag SKU: {mat_id}") 
                 for item in FILAMENT_MASTER_DATA:
+                    # 使用 in 匹配，防止末尾有空字节
                     if item["Id"] and (item["Id"] in mat_id):
                         mat_name = item["Name"]
                         break
             
-            # --- 2. 读取颜色 (Page 20, ABGR) ---
+            # --- 2. 读取颜色 (完全体逻辑：Page 20, ABGR) ---
             r_color, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x14, 0x04])
             color_name = "未选择颜色"
             if s1 == 0x90 and len(r_color) >= 4:
-                # 根据文档 ABGR: r_color[0]=A, r_color[1]=B, r_color[2]=G, r_color[3]=R
-                # 我们匹配需要的是 RGB
+                # 严格按照 ABGR 提取：Byte3=R, Byte2=G, Byte1=B
                 hex_v = f"#{r_color[3]:02X}{r_color[2]:02X}{r_color[1]:02X}".upper()
                 for c in COLOR_DB:
                     if c['value'].upper() == hex_v:
                         color_name = c['name_cn']
+                        # 自动更新 UI 上的预览颜色
+                        self.on_color_selected(c)
                         break
 
             self.log("SUCCESS", f"读取完成：{mat_name} / {color_name}")
@@ -361,9 +360,13 @@ class AnycubicRFIDTool(QMainWindow):
             type_bytes = (list(mat_info["Name"].encode("ascii")) + [0]*4)[:4]
             conn.transmit([0xFF, 0xD6, 0x00, 0x0F, 0x04] + type_bytes)
 
-            # --- Page 20: 颜色 ABGR (Alpha固定00) ---
+            # --- Page 20: 颜色 ARGB (Alpha=FF, R, G, B) ---
             r, g, b = int(col_info['value'][1:3],16), int(col_info['value'][3:5],16), int(col_info['value'][5:7],16)
-            conn.transmit([0xFF, 0xD6, 0x00, 0x14, 0x04, 0x00, b, g, r])
+            
+            # 顺序：Byte0=Alpha, Byte1=Red, Byte2=Green, Byte3=Blue
+            # 白色应为: FF FF FF FF
+            # 黑色应为: FF 21 27 21
+            conn.transmit([0xFF, 0xD6, 0x00, 0x14, 0x04, 0xFF, r, g, b])
 
             # --- Page 24: 喷嘴温度 (根据文档 Min C8 00 / Max D2 00) ---
             # C8=200, D2=210
