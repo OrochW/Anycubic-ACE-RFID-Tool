@@ -43,12 +43,12 @@ The tool modifies the following **Page (Addr)** addresses on the physical chip. 
     * **TAG READY**: 已检测到标签，可以进行读写。
 
 ### 3.2 Workflow | 操作流程
-1.  **Configure Material**: Select the material type (e.g., PLA) from the dropdown.
-    **配置材质**: 从下拉框选择材质类型（如 PLA）。
-2.  **Select Color**: Click a color block from the official palette.
-    **选择颜色**: 从官方调色板中点击选择颜色色块。
-3.  **Read/Write**: Use "Read Tag" to pull data or "Write Tag" to sync your selection to the chip.
-    **读写操作**: 使用“读取标签”拉取数据，或“同步写入”将选择的信息同步至芯片。
+1.  * **Configure Material**: Select the material type (e.g., PLA) from the dropdown.
+    * **配置材质**: 从下拉框选择材质类型（如 PLA）。
+3.  * **Select Color**: Click a color block from the official palette.
+    * **选择颜色**: 从官方调色板中点击选择颜色色块。
+4.  * **Read/Write**: Use "Read Tag" to pull data or "Write Tag" to sync your selection to the chip.
+    * **读写操作**: 使用“读取标签”拉取数据，或“同步写入”将选择的信息同步至芯片。
 
 ---
 
@@ -71,3 +71,5 @@ python -m PyInstaller --noconsole --onefile --name "Anycubic_ACE_Tool" ace2pro.p
 
 **Note**: Ensure the **Smart Card** service is running in Windows before use.
 **注意**: 使用前请确保 Windows 的 **Smart Card** 服务正在运行。
+
+thanks: https://github.com/DnG-Crafts/ACE-RFID
