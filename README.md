@@ -1,24 +1,12 @@
 # Anycubic-ACE-RFID-Tool
 Anycubic ACE Pro RFID Editor. Customize third-party filaments by modifying NTAG215 tags (Material ID &amp; RGB/D4 protocol). Supports acr122u readers.  纵维立方 Anycubic ACE Pro RFID 编辑器。通过修改 NTAG215 标签（材质 ID 与 RGB/D4 协议）自定义第三方耗材。支持 acr122u 读卡器。
 
-既然是针对 **Anycubic ACE Pro** 的项目，为了显得既专业又能在 GitHub 上精准引流，我建议项目名为：
-
-### **`ACE-Pro-Filament-Master`**
-*(ACE Pro 耗材大师)*
-
-或者更具技术感的：
-### **`Anycubic-ACE-RFID-Editor`**
-*(Anycubic ACE RFID 编辑器)*
-
-下面是为你整合的完整文档，采用**中英双语对照**格式，涵盖了技术规格、存储映射、UI 说明及编译指南。
-
 ---
 
-# ACE-Pro-Filament-Master
 
 ## 1. Project Introduction | 项目简介
-This project is a Python-based GUI desktop application designed specifically for the **Anycubic ACE Pro** filament box. By modifying specific address data on NXP NTAG213 chips, it allows users to customize filament material IDs and colors, enabling the system to recognize third-party filaments.
-本项目是一个基于 Python 开发的 GUI 桌面程序，专为 **Anycubic ACE Pro** 耗材盒设计。通过修改 NXP NTAG213 芯片特定地址的数据，允许用户自定义耗材材质 ID 和颜色，从而让系统识别第三方耗材。
+This project is a Python-based GUI desktop application designed specifically for the **Anycubic ACE Pro** filament box. By modifying specific address data on NXP NTAG215 chips, it allows users to customize filament material IDs and colors, enabling the system to recognize third-party filaments.
+本项目是一个基于 Python 开发的 GUI 桌面程序，专为 **Anycubic ACE Pro** 耗材盒设计。通过修改 NXP NTAG215 芯片特定地址的数据，允许用户自定义耗材材质 ID 和颜色，从而让系统识别第三方耗材。
 
 ## 2. RFID Memory Map | RFID 存储映射表
 The tool modifies the following **Page (Addr)** addresses on the physical chip. Each page contains 4 bytes.
