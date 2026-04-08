@@ -69,7 +69,7 @@ python -m PyInstaller --noconsole --onefile --name "Anycubic_ACE_Tool" ace2pro.p
 
 ---
 
-**Note**: Ensure the **Smart Card** service is running in Windows before use.
-**注意**: 使用前请确保 Windows 的 **Smart Card** 服务正在运行。
+* **Note**: Ensure the **Smart Card** service is running in Windows before use.
+* **注意**: 使用前请确保 Windows 的  **Smart Card** 服务正在运行。
 
 thanks: https://github.com/DnG-Crafts/ACE-RFID
