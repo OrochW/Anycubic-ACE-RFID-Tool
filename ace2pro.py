@@ -97,6 +97,7 @@ class AnycubicRFIDTool(QMainWindow):
         self.worker = RFIDWorker()
         self.worker.tag_status.connect(self.handle_tag_change)
         self.worker.start()
+        self.current_tag_ready = False
 
     def setup_ui(self):
         central = QWidget()
@@ -269,11 +270,13 @@ class AnycubicRFIDTool(QMainWindow):
             self.log("INFO", "自动检测已关闭")
 
     def handle_tag_change(self, has_tag):
+        self.current_tag_ready = has_tag  # 更新标签状态
         if has_tag:
             self.status_led.setText("TAG READY")
             self.status_led.setStyleSheet("color: white; font-weight: 900; font-size: 11px; background: #28CD41; border-radius: 4px; padding-top: 2px;")
             self.log("HARDWARE", "NTAG215 标签已就绪")
-            if self.is_auto_reading: self.read_tag_logic(manual=False)
+            if self.is_auto_reading:
+                self.read_tag_logic(manual=False)  # 自动模式只在有标签时触发
         else:
             self.status_led.setText("NO TAG")
             self.status_led.setStyleSheet("color: #FF3B30; font-weight: 900; font-size: 11px; background: #FFF0F0; border-radius: 4px; border: 1px solid #FFCCCC; padding-top: 2px;")
@@ -292,28 +295,61 @@ class AnycubicRFIDTool(QMainWindow):
         except: return None
 
     def read_tag_logic(self, manual=False):
+        if not self.current_tag_ready:
+            if manual:
+                self.log("WARN", "当前没有标签，无法读取")
+            return
+
         conn = self.get_conn()
-        if not conn: return
+        if not conn:
+            return
+
         try:
             conn.connect()
-            r_m, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x0E, 0x04])
-            mat = "".join([chr(b) for b in r_m if 32 <= b <= 126]).strip()
-            r_c, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x13, 0x04])
-            color_name = "未知颜色"
+
+            # --- 读取 SKU (Page 5~8) ---
+            r_sku, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x04, 0x04])
+            mat_name = "未知耗材"
             if s1 == 0x90:
-                hex_v = f"#{r_c[0]:02X}{r_c[1]:02X}{r_c[2]:02X}".upper()
+                # 只取前 4 个字节匹配写入的 ID
+                mat_id_bytes = r_sku[:4]
+                mat_id = "".join([chr(b) for b in mat_id_bytes if 32 <= b <= 126]).strip()
+                for item in FILAMENT_MASTER_DATA:
+                    if item["Id"].startswith(mat_id):  # 用前缀匹配
+                        mat_name = item["Name"]
+                        idx = self.combo_mat.findText(mat_name)
+                        if idx >= 0:
+                            self.combo_mat.setCurrentIndex(idx)
+                        break
+
+            # --- 读取颜色 (Page 20, ABGR) ---
+            r_color, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x14, 0x04])
+            color_name = "未知颜色"
+            if s1 == 0x90 and len(r_color) >= 3:
+                hex_v = f"#{r_color[2]:02X}{r_color[1]:02X}{r_color[0]:02X}".upper()
                 for c in COLOR_DB:
-                    if c['value'].upper() == hex_v: self.on_color_selected(c); color_name = c['name_cn']; break
-            self.log("SUCCESS", f"读取完成：{mat} / {color_name}")
-        except: self.log("WARN", "通讯异常")
+                    if c['value'].upper() == hex_v:
+                        self.on_color_selected(c)
+                        color_name = c['name_cn']
+                        break
+
+            self.log("SUCCESS", f"读取完成：{mat_name} / {color_name}")
+
+        except:
+            self.log("WARN", "通讯异常")
 
     # --------- 修改后的写入逻辑 ---------
     def write_tag_logic(self):
+        if not self.current_tag_ready:
+            self.log("WARN", "当前没有标签，无法写入")
+            return
         conn = self.get_conn()
         if not conn: return
         mat_info = self.combo_mat.currentData()
         col_info = self.selected_color_info
-        if col_info['name_cn'] == "未选择": return
+        if col_info['name_cn'] == "未选择": 
+            self.log("WARN", "未选择颜色，无法写入")
+            return
         try:
             conn.connect()
 
