@@ -1,4 +1,4 @@
----
+
 
 # 🚀 Anycubic ACE Pro RFID Wiki
 
@@ -6,9 +6,9 @@
 * [cite_start]**标志位地址**: Addr 14 (物理地址 0x13) [cite: 13, 14]。
 * [cite_start]**标志位数值**: **`0xD4`** [cite: 9, 14]。
 * [cite_start]**写入规则**: 颜色数据的 4 个字节必须遵循 `[R] [G] [B] [D4]` 格式 [cite: 9, 14]。
-    * [cite_start]*示例 (米色)*: `F7 E6 DE D4` [cite: 14]。
+* [cite_start]*示例 (米色)*: `F7 E6 DE D4` [cite: 14]。
 
----
+
 
 ## 2. 耗材主数据映射 (Filament Master Data)
 [cite_start]这些数据对应芯片中的 **Addr 04 - 07**（SKU ID）以及 **Addr 0F / 0E**（材质名称） [cite: 4, 7, 8]。
