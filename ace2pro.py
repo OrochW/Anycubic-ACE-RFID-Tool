@@ -89,15 +89,16 @@ class AnycubicRFIDTool(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Anycubic ACE RFID Manager")
-        self.setFixedSize(500, 880)
+        self.setFixedSize(500, 920) # 稍微调高一点 UI 高度
         self.setStyleSheet("background-color: #FFFFFF;")
         self.is_auto_reading = False 
         self.selected_color_info = {"name_cn": "未选择", "value": "#FFFFFF"}
+        self.debug_mode = False # 默认不开启
+        self.current_tag_ready = False
         self.setup_ui()
         self.worker = RFIDWorker()
         self.worker.tag_status.connect(self.handle_tag_change)
         self.worker.start()
-        self.current_tag_ready = False
 
     def setup_ui(self):
         central = QWidget()
@@ -123,70 +124,27 @@ class AnycubicRFIDTool(QMainWindow):
 
         main_lay.addWidget(QLabel("1. 配置材质类型", styleSheet=label_style))
         self.combo_mat = QComboBox()
-        # 1. 强制使用列表视图，这是实现 Web 样式的关键
         self.combo_mat.setView(QListView())
         self.combo_mat.setFixedHeight(50)
-
-        # 2. 样式表：实现右侧带箭头的 Web 风格
         self.combo_mat.setStyleSheet("""
             QComboBox { 
-                border: 2px solid #EEE; 
-                border-radius: 10px; 
-                padding-left: 15px; 
-                font-size: 16px; 
-                font-weight: 500; 
-                background: white; 
-                /* 关键：0 强制向下弹出，不遮挡输入框 */
-                combobox-popup: 0;
+                border: 2px solid #EEE; border-radius: 10px; padding-left: 15px; 
+                font-size: 16px; font-weight: 500; background: white; combobox-popup: 0;
             }
             QComboBox:hover { border-color: #0078D4; }
-
-            /* 右侧下拉按钮区域 */
             QComboBox::drop-down { 
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 30px; 
-                border-left: 1px solid #EEE; /* 按钮左侧的分隔线 */
-                border-top-right-radius: 10px;
-                border-bottom-right-radius: 10px;
+                subcontrol-origin: padding; subcontrol-position: top right;
+                width: 30px; border-left: 1px solid #EEE; border-top-right-radius: 10px; border-bottom-right-radius: 10px;
             }
-
-            /* 下拉箭头图标 (使用一个简单的 V 字型字符或自定义图形) */
             QComboBox::down-arrow { 
-                image: none; /* 禁用系统图标 */
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 5px solid #999; /* 用边框拼出一个小三角 */
-                margin-top: 2px;
+                image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid #999; margin-top: 2px;
             }
-            QComboBox::down-arrow:on { border-top-color: #0078D4; }
-
-            /* 下拉列表容器 */
-            QComboBox QAbstractItemView {
-                border: 1px solid #DDD; 
-                background: white; 
-                outline: none;
-                selection-background-color: #0078D4;
-                selection-color: #FFFFFF;
-                padding: 5px 0px;
-            }
-            QComboBox QAbstractItemView::item {
-                height: 40px; 
-                padding-left: 10px; 
-                color: #333;
-            }
-            QComboBox QAbstractItemView::item:selected {
-                background-color: #0078D4; color: #FFFFFF;
-            }
+            QComboBox QAbstractItemView { border: 1px solid #DDD; background: white; outline: none; selection-background-color: #0078D4; }
+            QComboBox QAbstractItemView::item { height: 40px; padding-left: 10px; color: #333; }
         """)
-
-        # 3. 配置显示行为：如果条目多，显示滚动条，但限制高度
-        self.combo_mat.setMaxVisibleItems(10) # 即使耗材超过12个，也会限制高度并显示滚动条
-        self.combo_mat.setItemDelegate(QStyledItemDelegate())
 
         for item in FILAMENT_MASTER_DATA:
             self.combo_mat.addItem(item["Name"], item)
-
         main_lay.addWidget(self.combo_mat)
 
         main_lay.addWidget(QLabel("2. 官方颜色选择", styleSheet=label_style))
@@ -227,56 +185,81 @@ class AnycubicRFIDTool(QMainWindow):
             b.setCursor(Qt.PointingHandCursor)
             b.setStyleSheet("font-weight: 800; font-size: 16px; border-radius: 12px;")
         
-        self.btn_read.setStyleSheet(self.btn_read.styleSheet() + "background-color: white; color: #0078D4; border: 2px solid #0078D4;")
-        self.btn_write.setStyleSheet(self.btn_write.styleSheet() + "background-color: #0078D4; color: white; border: none;")
+        self.btn_read.setStyleSheet("background-color: white; color: #0078D4; border: 2px solid #0078D4; font-weight: 800; font-size: 16px; border-radius: 12px;")
+        self.btn_write.setStyleSheet("background-color: #0078D4; color: white; border: none; font-weight: 800; font-size: 16px; border-radius: 12px;")
         self.btn_read.clicked.connect(lambda: self.read_tag_logic(manual=True))
         self.btn_write.clicked.connect(self.write_tag_logic)
         action_lay.addWidget(self.btn_read)
         action_lay.addWidget(self.btn_write)
         main_lay.addLayout(action_lay)
 
-        l3 = QLabel("操作实时反馈", styleSheet=label_style)
+        # 日志头部栏（含 Debug 开关）
+        log_h = QHBoxLayout()
+        log_h.addWidget(QLabel("操作实时反馈", styleSheet=label_style))
+        log_h.addStretch()
+        
+        self.btn_debug_toggle = QPushButton("DEBUGLOG OFF")
+        self.btn_debug_toggle.setCheckable(True)
+        self.btn_debug_toggle.setFixedSize(90, 24)
+        self.btn_debug_toggle.setStyleSheet("QPushButton { font-size: 10px; color: #999; border: 1px solid #EEE; border-radius: 4px; font-weight: bold; }")
+        self.btn_debug_toggle.clicked.connect(self.toggle_debug_mode)
+        
         btn_clear = QPushButton("清空记录")
         btn_clear.setFixedSize(65, 24)
         btn_clear.setStyleSheet("font-size: 11px; color: #999; border: 1px solid #EEE; border-radius: 4px;")
         btn_clear.clicked.connect(lambda: self.log_box.clear())
-        log_h = QHBoxLayout(); log_h.addWidget(l3); log_h.addStretch(); log_h.addWidget(btn_clear)
+        
+        log_h.addWidget(self.btn_debug_toggle)
+        log_h.addWidget(btn_clear)
         main_lay.addLayout(log_h)
 
         self.log_box = QTextEdit()
         self.log_box.setReadOnly(True)
         self.log_box.setStyleSheet("QTextEdit { background-color: #FAFAFA; border: 1px solid #EEE; border-radius: 10px; color: #444; font-family: 'Consolas', 'Microsoft YaHei'; font-size: 12px; padding: 12px; }")
-        main_lay.setStretch(11, 10) 
         main_lay.addWidget(self.log_box)
 
     def log(self, type_str, message, color="#333"):
         time_str = datetime.now().strftime("%H:%M:%S")
-        type_colors = {'INFO': ('#0078D4', '#EBF5FF'), 'SUCCESS': ('#28CD41', '#E8F9EC'), 'WARN': ('#FF3B30', '#FFF0F0'), 'HARDWARE': ('#5856D6', '#F2F2F7')}
+        type_colors = {
+            'INFO': ('#0078D4', '#EBF5FF'), 
+            'SUCCESS': ('#28CD41', '#E8F9EC'), 
+            'WARN': ('#FF3B30', '#FFF0F0'), 
+            'HARDWARE': ('#5856D6', '#F2F2F7'),
+            'DEBUG': ('#666', '#EEE')
+        }
         fg, bg = type_colors.get(type_str, ('#666', '#EEE'))
         html = f"""<div style="margin-bottom: 6px;"><span style="color: #BBB; font-size: 10px;">[{time_str}]</span>
             <span style="background-color: {bg}; color: {fg}; padding: 2px 5px; border-radius: 3px; font-weight: bold; font-size: 10px;">{type_str}</span>
             <span style="color: {color}; margin-left: 6px; font-family: 'Microsoft YaHei';">{message}</span></div>"""
         self.log_box.append(html); self.log_box.moveCursor(QTextCursor.End)
 
+    def toggle_debug_mode(self, checked):
+        self.debug_mode = checked
+        if checked:
+            self.btn_debug_toggle.setText("DEBUGLOG ON")
+            self.btn_debug_toggle.setStyleSheet("QPushButton { font-size: 10px; color: white; background: #555; border-radius: 4px; font-weight: bold; }")
+            self.log("INFO", "调试模式已开启：将显示详细寄存器数据")
+        else:
+            self.btn_debug_toggle.setText("DEBUGLOG OFF")
+            self.btn_debug_toggle.setStyleSheet("QPushButton { font-size: 10px; color: #999; border: 1px solid #EEE; border-radius: 4px; font-weight: bold; }")
+
     def toggle_auto_read(self, checked):
         self.is_auto_reading = checked
         if checked:
             self.btn_auto.setText("自动模式 ON")
             self.btn_auto.setStyleSheet("QPushButton { background-color: #00C853; color: white; border-radius: 10px; font-weight: bold; border: none; }")
-            self.log("INFO", "自动检测已开启")
+            self.log("INFO", "自动读取开启")
         else:
             self.btn_auto.setText("自动读取 OFF")
             self.btn_auto.setStyleSheet("QPushButton { background-color: #F9F9F9; color: #999; border-radius: 10px; font-weight: bold; border: 1px solid #EEE; }")
-            self.log("INFO", "自动检测已关闭")
 
     def handle_tag_change(self, has_tag):
-        self.current_tag_ready = has_tag  # 更新标签状态
+        self.current_tag_ready = has_tag
         if has_tag:
             self.status_led.setText("TAG READY")
             self.status_led.setStyleSheet("color: white; font-weight: 900; font-size: 11px; background: #28CD41; border-radius: 4px; padding-top: 2px;")
             self.log("HARDWARE", "NTAG215 标签已就绪")
-            if self.is_auto_reading:
-                self.read_tag_logic(manual=False)  # 自动模式只在有标签时触发
+            if self.is_auto_reading: self.read_tag_logic(manual=False)
         else:
             self.status_led.setText("NO TAG")
             self.status_led.setStyleSheet("color: #FF3B30; font-weight: 900; font-size: 11px; background: #FFF0F0; border-radius: 4px; border: 1px solid #FFCCCC; padding-top: 2px;")
@@ -295,94 +278,115 @@ class AnycubicRFIDTool(QMainWindow):
         except: return None
 
     def read_tag_logic(self, manual=False):
-        if not self.current_tag_ready:
-            if manual: self.log("WARN", "当前没有标签，无法读取")
-            return
+        if not self.current_tag_ready: return
         conn = self.get_conn()
         if not conn: return
+        data_map = {} # 定义
         try:
             conn.connect()
-            # --- 1. 读取 SKU (Page 5~7) ---
-            r_sku, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x05, 0x0C])
-            mat_name = "未知耗材"
-            if s1 == 0x90:
-                mat_id = "".join([chr(b) for b in r_sku if 32 <= b <= 126]).strip()
-                for item in FILAMENT_MASTER_DATA:
-                    # 使用 in 匹配，防止末尾有空字节
-                    if item["Id"] and (item["Id"] in mat_id):
-                        mat_name = item["Name"]
-                        break
+            if manual or self.debug_mode:
+                self.log("SYSTEM", ">>> 启动全寄存器协议扫描 <<<", "#569CD6")
             
-            # --- 2. 读取颜色 (完全体逻辑：Page 20, ABGR) ---
-            r_color, s1, _ = conn.transmit([0xFF, 0xB0, 0x00, 0x14, 0x04])
-            color_name = "未选择颜色"
-            if s1 == 0x90 and len(r_color) >= 4:
-                # 严格按照 ABGR 提取：Byte3=R, Byte2=G, Byte1=B
-                hex_v = f"#{r_color[3]:02X}{r_color[2]:02X}{r_color[1]:02X}".upper()
-                for c in COLOR_DB:
-                    if c['value'].upper() == hex_v:
-                        color_name = c['name_cn']
-                        # 自动更新 UI 上的预览颜色
-                        self.on_color_selected(c)
-                        break
+            for p in range(4, 32): # 循环读取
+                QApplication.processEvents()
+                res, sw1, _ = conn.transmit([0xFF, 0xB0, 0x00, p, 0x04])
+                if sw1 == 0x90:
+                    data_map[p] = res
+                    # --- 修改点 2：加上判断，只有开启 Debug 才打印 PAGE 数据 ---
+                    if self.debug_mode:
+                        h = " ".join([f"{b:02X}" for b in res])
+                        a = "".join([chr(b) if 32<=b<=126 else "." for b in res])
+                        self.log(f"PAGE {p:02d}", f"{h}  |  {a}", "#CE9178")
 
-            self.log("SUCCESS", f"读取完成：{mat_name} / {color_name}")
-        except:
-            self.log("WARN", "通讯异常")
+            # --- 关键功能：检测空白标签 ---
+            if 4 not in data_map or data_map[4] != [0x7B, 0x00, 0x65, 0x00]:
+                self.log("STATUS", "检测到空白标签或格式未激活，请点击 [同步写入]", "#E06C75")
+                return
 
-    # --------- 修改后的写入逻辑 ---------
-    def write_tag_logic(self):
-        if not self.current_tag_ready:
-            self.log("WARN", "当前没有标签，无法写入")
-            return
-        conn = self.get_conn()
-        if not conn: return
-        mat_info = self.combo_mat.currentData()
-        col_info = self.selected_color_info
-        if col_info['name_cn'] == "未选择": 
-            self.log("WARN", "未选择颜色，无法写入")
-            return
-        try:
-            conn.connect()
-            # --- Page 4: Magic Byte (根据文档写入 7B 00 65 00) ---
-            conn.transmit([0xFF, 0xD6, 0x00, 0x04, 0x04, 0x7B, 0x00, 0x65, 0x00])
-
-            # --- Page 5-7: SKU (分 3 次写入) ---
-            sku_str = mat_info["Id"].ljust(12, '\x00')
-            sku_bytes = list(sku_str.encode("ascii"))
-            for i in range(3):
-                conn.transmit([0xFF, 0xD6, 0x00, 0x05 + i, 0x04] + sku_bytes[i*4:(i+1)*4])
-
-            # --- Page 10: Brand (AC) ---
-            conn.transmit([0xFF, 0xD6, 0x00, 0x0A, 0x04, 0x41, 0x43, 0x00, 0x00])
-
-            # --- Page 15: Type (材质简写) ---
-            type_bytes = (list(mat_info["Name"].encode("ascii")) + [0]*4)[:4]
-            conn.transmit([0xFF, 0xD6, 0x00, 0x0F, 0x04] + type_bytes)
-
-            # --- Page 20: 颜色 ARGB (Alpha=FF, R, G, B) ---
-            r, g, b = int(col_info['value'][1:3],16), int(col_info['value'][3:5],16), int(col_info['value'][5:7],16)
+            # --- 正常解析逻辑 (对齐官方 Dump 地址) ---
+            # 1. 解析 SKU (官方在 Page 05, 06, 07)
+            sku = "".join([chr(b) for p in [5,6,7] for b in data_map.get(p, []) if 32<=b<=126]).strip()
             
-            # 顺序：Byte0=Alpha, Byte1=Red, Byte2=Green, Byte3=Blue
-            # 白色应为: FF FF FF FF
-            # 黑色应为: FF 21 27 21
-            conn.transmit([0xFF, 0xD6, 0x00, 0x14, 0x04, 0xFF, r, g, b])
+            # 2. 解析颜色 (官方在 Page 13，Page 20 可能为空)
+            color_name = "未知"
+            # 官方 Dump 显示颜色校验在 Page 19 (0x13)
+            if 19 in data_map:
+                c = data_map[19]
+                tag_hex = f"#{c[3]:02X}{c[2]:02X}{c[1]:02X}".upper() # RGB 顺序
+                for item in COLOR_DB:
+                    if item['value'].upper() == tag_hex:
+                        color_name = item['name_cn']; break
+                self.log("SUCCESS", f"已识别: {sku} | 颜色: {color_name} ({tag_hex})", "#98C379")
 
-            # --- Page 24: 喷嘴温度 (根据文档 Min C8 00 / Max D2 00) ---
-            # C8=200, D2=210
-            conn.transmit([0xFF, 0xD6, 0x00, 0x18, 0x04, 0xC8, 0x00, 0xD2, 0x00])
+            # 3. 解析物理参数 (对齐官方数据)
+            # 喷嘴温度在 Page 23 (0x17) [cite: 10, 28]
+            if 23 in data_map:
+                t = data_map[23]
+                self.log("PARAMS", f"喷嘴温度: {t[0]}°C - {t[2]}°C", "#61AFEF")
 
-            # --- Page 29: 热床温度 (根据文档 Min 32 00 / Max 3C 00) ---
-            # 32=50, 3C=60
-            conn.transmit([0xFF, 0xD6, 0x00, 0x1D, 0x04, 0x32, 0x00, 0x3C, 0x00])
+            # 长度与线径在 Page 29 (0x1D) [cite: 12, 30]
+            # 满盘百分比在 Page 30 (0x1E) [cite: 12, 30]
+            is_full = False
+            if 29 in data_map and data_map[29][2:4] == [0x4A, 0x01]:
+                if 30 in data_map and data_map[30][0:2] == [0xE8, 0x03]:
+                    is_full = True
+            
+            if is_full:
+                self.log("STATUS", "检测结果: 330m (官方满盘格式)", "#98C379")
+            else:
+                self.log("WARN", "检测结果: 非满盘或长度校验不匹配", "#E06C75")
 
-            # --- Page 30: 耗材参数 (直径 AF 00 / 长度 4A 01) ---
-            # AF 00 = 175 (1.75mm), 4A 01 = 330 (克数? 根据文档保持即可)
-            conn.transmit([0xFF, 0xD6, 0x00, 0x1E, 0x04, 0xAF, 0x00, 0x4A, 0x01])
-
-            self.log("SUCCESS", f"写入完成：{mat_info['Name']} - {col_info['name_cn']}")
         except Exception as e:
-            self.log("WARN", f"写入失败: {str(e)}")
+            self.log("ERROR", f"读取失败: {str(e)}", "#F44747")
+
+    def write_tag_logic(self):
+        if not self.current_tag_ready: return
+        conn = self.get_conn()
+        if not conn: return
+        mat = self.combo_mat.currentData()
+        col = self.selected_color_info
+        try:
+            conn.connect()
+            
+            # 1. 协议激活 (Page 04) [cite: 4, 22]
+            conn.transmit([0xFF, 0xD6, 0x00, 0x04, 0x04, 0x7B, 0x00, 0x65, 0x00])
+            
+            # 2. 写入 SKU (Page 05-07) [cite: 22]
+            sku_b = list(mat["Id"].ljust(12, '\x00').encode("ascii"))
+            for i in range(3):
+                conn.transmit([0xFF, 0xD6, 0x00, 0x05 + i, 0x04] + sku_b[i*4:(i+1)*4])
+            
+            # 3. 写入品牌 (Page 0A) 与 材质名称 (Page 0E) [cite: 23, 25]
+            conn.transmit([0xFF, 0xD6, 0x00, 0x0A, 0x04, 0x41, 0x6E, 0x79, 0x63]) # "Anyc"
+            conn.transmit([0xFF, 0xD6, 0x00, 0x0E, 0x04] + list(mat["Name"].ljust(4, '\x00').encode("ascii"))[:4])
+
+            # 4. 写入颜色数据 (官方 Dump 显示在 Page 13 [0x13]) [cite: 9, 27]
+            r, g, b = int(col['value'][1:3], 16), int(col['value'][3:5], 16), int(col['value'][5:7], 16)
+            conn.transmit([0xFF, 0xD6, 0x00, 0x13, 0x04, 0xFF, b, g, r]) 
+
+            # 5. 写入喷嘴温度 (官方在 Page 17 [0x17]) [cite: 10, 28]
+            # 数据: C8 00 D2 00 代表 200-210°C
+            conn.transmit([0xFF, 0xD6, 0x00, 0x17, 0x04, 0xC8, 0x00, 0xD2, 0x00])
+
+            # 6. 写入热床温度 (官方在 Page 1C [0x1C]) 
+            # 数据: 32 00 3C 00 代表 50-60°C
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1C, 0x04, 0x32, 0x00, 0x3C, 0x00])
+
+            # 7. 核心修正：线径与满盘长度 (官方在 Page 1D [0x1D]) 
+            # 数据: AF 00 4A 01 代表 1.75mm / 330m
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1D, 0x04, 0xAF, 0x00, 0x4A, 0x01]) 
+
+            # 8. 核心修正：剩余百分比校验 (官方在 Page 1E [0x1E]) 
+            # 数据: E8 03 00 00 代表 1000 (即 100.0%)
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1E, 0x04, 0xE8, 0x03, 0x00, 0x00])
+
+            self.log("SUCCESS", "已按照原厂 Dump 修正地址偏移，满盘参数注入成功", "#98C379")
+        except Exception as e:
+            self.log("ERROR", f"写入失败: {e}", "#F44747")
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv); app.setStyle("Fusion"); win = AnycubicRFIDTool(); win.show(); sys.exit(app.exec())
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    win = AnycubicRFIDTool()
+    win.show()
+    sys.exit(app.exec())
