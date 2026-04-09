@@ -281,52 +281,64 @@ class AnycubicRFIDTool(QMainWindow):
         if not self.current_tag_ready: return
         conn = self.get_conn()
         if not conn: return
-        data_map = {} # 定义
+        data_map = {} 
         try:
             conn.connect()
-            if manual or self.debug_mode:
+            
+            # --- 优化点 1：只有明确开启 debug_mode 才会打印扫描起始 ---
+            # 删掉了 manual 判断，这样手动读取时界面也会很干净
+            if self.debug_mode:
                 self.log("SYSTEM", ">>> 启动全寄存器协议扫描 <<<", "#569CD6")
             
-            for p in range(4, 32): # 循环读取
+            for p in range(4, 32): 
                 QApplication.processEvents()
                 res, sw1, _ = conn.transmit([0xFF, 0xB0, 0x00, p, 0x04])
                 if sw1 == 0x90:
                     data_map[p] = res
-                    # --- 修改点 2：加上判断，只有开启 Debug 才打印 PAGE 数据 ---
+                    # 只有开启 Debug 才打印详细寄存器数据
                     if self.debug_mode:
                         h = " ".join([f"{b:02X}" for b in res])
                         a = "".join([chr(b) if 32<=b<=126 else "." for b in res])
                         self.log(f"PAGE {p:02d}", f"{h}  |  {a}", "#CE9178")
 
-            # --- 关键功能：检测空白标签 ---
+            # --- 关键检测：识别码校验 ---
             if 4 not in data_map or data_map[4] != [0x7B, 0x00, 0x65, 0x00]:
-                self.log("STATUS", "检测到空白标签或格式未激活，请点击 [同步写入]", "#E06C75")
+                self.log("STATUS", "检测到空白标签或格式未激活", "#E06C75")
                 return
 
-            # --- 正常解析逻辑 (对齐官方 Dump 地址) ---
-            # 1. 解析 SKU (官方在 Page 05, 06, 07)
+            # --- 正常解析逻辑 ---
+            # 1. 解析 SKU
             sku = "".join([chr(b) for p in [5,6,7] for b in data_map.get(p, []) if 32<=b<=126]).strip()
             
-            # 2. 解析颜色 (官方在 Page 13，Page 20 可能为空)
+            # 反查材质名称
+            mat_name = "未知材质"
+            for m in FILAMENT_MASTER_DATA:
+                if m["Id"] == sku:
+                    mat_name = m["Name"]
+                    break
+            
+            # 2. 解析颜色
             color_name = "未知"
-            # 官方 Dump 显示颜色校验在 Page 19 (0x13)
+            tag_hex = "#FFFFFF"
             if 19 in data_map:
                 c = data_map[19]
-                tag_hex = f"#{c[3]:02X}{c[2]:02X}{c[1]:02X}".upper() # RGB 顺序
+                tag_hex = f"#{c[3]:02X}{c[2]:02X}{c[1]:02X}".upper()
                 for item in COLOR_DB:
                     if item['value'].upper() == tag_hex:
-                        color_name = item['name_cn']; break
-                self.log("SUCCESS", f"已识别: {sku} | 颜色: {color_name} ({tag_hex})", "#98C379")
+                        color_name = item['name_cn']
+                        break
+            
+            # --- 优化点 2：统一成功信息输出，删掉 PARAMS 温度输出 ---
+            self.log("SUCCESS", f"已识别: 【{mat_name}】 {sku} | 颜色: {color_name} ({tag_hex})", "#98C379")
 
-            # 3. 解析物理参数 (对齐官方数据)
-            # 喷嘴温度在 Page 23 (0x17) [cite: 10, 28]
-            if 23 in data_map:
-                t = data_map[23]
-                self.log("PARAMS", f"喷嘴温度: {t[0]}°C - {t[2]}°C", "#61AFEF")
+            # --- 3. 解析物理参数 (已移除温度 log，仅做内部校验) ---
+            # if 23 in data_map:
+            #     t = data_map[23]
+            #     # self.log("PARAMS", f"喷嘴温度: {t[0]}°C - {t[2]}°C", "#61AFEF") # 彻底注释
 
-            # 长度与线径在 Page 29 (0x1D) [cite: 12, 30]
-            # 满盘百分比在 Page 30 (0x1E) [cite: 12, 30]
+            # 4. 长度与容量校验
             is_full = False
+            # 校验 Page 29 和 Page 30 是否符合 330m/100% 的特征码
             if 29 in data_map and data_map[29][2:4] == [0x4A, 0x01]:
                 if 30 in data_map and data_map[30][0:2] == [0xE8, 0x03]:
                     is_full = True
@@ -337,7 +349,11 @@ class AnycubicRFIDTool(QMainWindow):
                 self.log("WARN", "检测结果: 非满盘或长度校验不匹配", "#E06C75")
 
         except Exception as e:
-            self.log("ERROR", f"读取失败: {str(e)}", "#F44747")
+            # 增加对 T1 协议重置错误的静默处理（可选）
+            if "0x80100068" in str(e):
+                self.log("HARDWARE", "读取中断，请保持标签静止", "#FFA500")
+            else:
+                self.log("ERROR", f"读取失败: {str(e)}", "#F44747")
 
     def write_tag_logic(self):
         if not self.current_tag_ready: return
