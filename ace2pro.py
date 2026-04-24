@@ -1,4 +1,24 @@
 # -*- coding: utf-8 -*-
+"""
+Anycubic ACE RFID Writer - Python Version
+基于官方 NFC 标签数据格式规范
+
+支持的标签类型: NTAG213, NTAG215, NTAG216, Ultralight-C
+
+数据写入页面分配表:
+| Page |      Data     | 说明 |
+|   4  |  7B 00 65 00  | Magic byte / 协议激活 |
+|  5-9 |    SKU (20B)  | 耗材编码 |
+| 10-13|    Brand(16B) | 品牌 (AC) |
+| 15-18|    Type(16B)  | 材质类型 (PLA/PETG/ABS...) |
+|  20  |  ABGR Color   | 颜色 (Alpha, B, G, R) |
+|  24  | Temp (4B)     | 挤出机温度 [min / max] 小端 |
+|  29  | Temp (4B)     | 热床温度 [min / max] 小端 |
+|  30  | Param (4B)    | 线径/长度 [直径×100 / 长度×100] 小端 |
+|  31  | Weight (4B)   | 重量 [克×100] 小端 |
+
+满盘检测: Page 30 == AF 00 4A 01 (1.75mm / 330m) AND Page 31 == E8 03 00 00 (1000g)
+"""
 import sys
 import time
 from datetime import datetime
@@ -63,11 +83,15 @@ COLOR_DB = [
     {"name_cn": "黑色", "value": "#212721", "color":[33,39,33]},
 ]
 
+
 class RFIDWorker(QThread):
+    """NFC 标签检测后台线程"""
     tag_status = Signal(bool)
+
     def run(self):
         last_state = False
-        if not SCARD_AVAILABLE: return
+        if not SCARD_AVAILABLE:
+            return
         while True:
             try:
                 r = readers()
@@ -80,18 +104,21 @@ class RFIDWorker(QThread):
                 if current_state != last_state:
                     self.tag_status.emit(current_state)
                     last_state = current_state
-            except:
-                if last_state: self.tag_status.emit(False)
+            except Exception:
+                if last_state:
+                    self.tag_status.emit(False)
                 last_state = False
             time.sleep(0.5)
 
+
 class AnycubicRFIDTool(QMainWindow):
+    """Anycubic ACE RFID 写入/读取工具"""
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Anycubic ACE RFID Manager")
         self.setFixedSize(500, 920)
         self.setStyleSheet("background-color: #FFFFFF;")
-        self.is_auto_reading = False 
+        self.is_auto_reading = False
         self.selected_color_info = {"name_cn": "未选择", "value": "#FFFFFF"}
         self.debug_mode = False
         self.current_tag_ready = False
@@ -107,6 +134,7 @@ class AnycubicRFIDTool(QMainWindow):
         main_lay.setContentsMargins(30, 25, 30, 30)
         main_lay.setSpacing(18)
 
+        # Header
         header = QHBoxLayout()
         title = QLabel("ACE RFID TOOL")
         title.setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 26px; font-weight: 800; color: #1A1A1A; letter-spacing: 1px;")
@@ -122,6 +150,7 @@ class AnycubicRFIDTool(QMainWindow):
 
         label_style = "font-family: 'Microsoft YaHei UI'; font-size: 17px; font-weight: 700; color: #333;"
 
+        # Material selector
         main_lay.addWidget(QLabel("1. 配置材质类型", styleSheet=label_style))
         self.combo_mat = QComboBox()
         self.combo_mat.setView(QListView())
@@ -142,11 +171,11 @@ class AnycubicRFIDTool(QMainWindow):
             QComboBox QAbstractItemView { border: 1px solid #DDD; background: white; outline: none; selection-background-color: #0078D4; }
             QComboBox QAbstractItemView::item { height: 40px; padding-left: 10px; color: #333; }
         """)
-
         for item in FILAMENT_MASTER_DATA:
             self.combo_mat.addItem(item["Name"], item)
         main_lay.addWidget(self.combo_mat)
 
+        # Color selector
         main_lay.addWidget(QLabel("2. 官方颜色选择", styleSheet=label_style))
         grid_widget = QWidget()
         grid = QGridLayout(grid_widget)
@@ -161,22 +190,22 @@ class AnycubicRFIDTool(QMainWindow):
             grid.addWidget(btn, i // 7, i % 7)
         main_lay.addWidget(grid_widget)
 
+        # Preview bar
         prev_lay = QHBoxLayout()
         self.preview_bar = QLabel("请选择颜色...")
         self.preview_bar.setAlignment(Qt.AlignCenter)
         self.preview_bar.setFixedHeight(55)
         self.preview_bar.setStyleSheet("border: 2px dashed #EEE; border-radius: 10px; color: #999; font-weight: bold; font-size: 15px;")
-        
         self.btn_auto = QPushButton("自动读取 OFF")
         self.btn_auto.setCheckable(True)
         self.btn_auto.setFixedSize(140, 55)
         self.btn_auto.setStyleSheet("QPushButton { background-color: #F9F9F9; color: #999; border-radius: 10px; font-weight: bold; border: 1px solid #EEE; }")
         self.btn_auto.clicked.connect(self.toggle_auto_read)
-        
         prev_lay.addWidget(self.preview_bar, 3)
         prev_lay.addWidget(self.btn_auto, 2)
         main_lay.addLayout(prev_lay)
 
+        # Action buttons
         action_lay = QHBoxLayout()
         self.btn_read = QPushButton("读取物理标签")
         self.btn_write = QPushButton("写入物理标签")
@@ -184,7 +213,6 @@ class AnycubicRFIDTool(QMainWindow):
             b.setFixedHeight(60)
             b.setCursor(Qt.PointingHandCursor)
             b.setStyleSheet("font-weight: 800; font-size: 16px; border-radius: 12px;")
-        
         self.btn_read.setStyleSheet("background-color: white; color: #0078D4; border: 2px solid #0078D4; font-weight: 800; font-size: 16px; border-radius: 12px;")
         self.btn_write.setStyleSheet("background-color: #0078D4; color: white; border: none; font-weight: 800; font-size: 16px; border-radius: 12px;")
         self.btn_read.clicked.connect(lambda: self.read_tag_logic(manual=True))
@@ -193,36 +221,36 @@ class AnycubicRFIDTool(QMainWindow):
         action_lay.addWidget(self.btn_write)
         main_lay.addLayout(action_lay)
 
+        # Log header
         log_h = QHBoxLayout()
         log_h.addWidget(QLabel("操作实时反馈", styleSheet=label_style))
         log_h.addStretch()
-        
         self.btn_debug_toggle = QPushButton("DEBUGLOG OFF")
         self.btn_debug_toggle.setCheckable(True)
         self.btn_debug_toggle.setFixedSize(90, 24)
         self.btn_debug_toggle.setStyleSheet("QPushButton { font-size: 10px; color: #999; border: 1px solid #EEE; border-radius: 4px; font-weight: bold; }")
         self.btn_debug_toggle.clicked.connect(self.toggle_debug_mode)
-        
         btn_clear = QPushButton("清空记录")
         btn_clear.setFixedSize(65, 24)
         btn_clear.setStyleSheet("font-size: 11px; color: #999; border: 1px solid #EEE; border-radius: 4px;")
         btn_clear.clicked.connect(lambda: self.log_box.clear())
-        
         log_h.addWidget(self.btn_debug_toggle)
         log_h.addWidget(btn_clear)
         main_lay.addLayout(log_h)
 
+        # Log box
         self.log_box = QTextEdit()
         self.log_box.setReadOnly(True)
         self.log_box.setStyleSheet("QTextEdit { background-color: #FAFAFA; border: 1px solid #EEE; border-radius: 10px; color: #444; font-family: 'Consolas', 'Microsoft YaHei'; font-size: 12px; padding: 12px; }")
         main_lay.addWidget(self.log_box)
 
     def log(self, type_str, message, color="#333"):
+        """记录日志"""
         time_str = datetime.now().strftime("%H:%M:%S")
         type_colors = {
-            'INFO': ('#0078D4', '#EBF5FF'), 
-            'SUCCESS': ('#28CD41', '#E8F9EC'), 
-            'WARN': ('#FF3B30', '#FFF0F0'), 
+            'INFO': ('#0078D4', '#EBF5FF'),
+            'SUCCESS': ('#28CD41', '#E8F9EC'),
+            'WARN': ('#FF3B30', '#FFF0F0'),
             'HARDWARE': ('#5856D6', '#F2F2F7'),
             'DEBUG': ('#666', '#EEE')
         }
@@ -230,7 +258,8 @@ class AnycubicRFIDTool(QMainWindow):
         html = f"""<div style="margin-bottom: 6px;"><span style="color: #BBB; font-size: 10px;">[{time_str}]</span>
             <span style="background-color: {bg}; color: {fg}; padding: 2px 5px; border-radius: 3px; font-weight: bold; font-size: 10px;">{type_str}</span>
             <span style="color: {color}; margin-left: 6px; font-family: 'Microsoft YaHei';">{message}</span></div>"""
-        self.log_box.append(html); self.log_box.moveCursor(QTextCursor.End)
+        self.log_box.append(html)
+        self.log_box.moveCursor(QTextCursor.End)
 
     def toggle_debug_mode(self, checked):
         self.debug_mode = checked
@@ -258,7 +287,8 @@ class AnycubicRFIDTool(QMainWindow):
             self.status_led.setText("TAG READY")
             self.status_led.setStyleSheet("color: white; font-weight: 900; font-size: 11px; background: #28CD41; border-radius: 4px; padding-top: 2px;")
             self.log("HARDWARE", "NTAG215 标签已就绪")
-            if self.is_auto_reading: self.read_tag_logic(manual=False)
+            if self.is_auto_reading:
+                self.read_tag_logic(manual=False)
         else:
             self.status_led.setText("NO TAG")
             self.status_led.setStyleSheet("color: #FF3B30; font-weight: 900; font-size: 11px; background: #FFF0F0; border-radius: 4px; border: 1px solid #FFCCCC; padding-top: 2px;")
@@ -273,30 +303,35 @@ class AnycubicRFIDTool(QMainWindow):
 
     def get_conn(self):
         try:
-            r = readers(); return r[0].createConnection() if r else None
-        except: return None
+            r = readers()
+            return r[0].createConnection() if r else None
+        except Exception:
+            return None
 
     def read_tag_logic(self, manual=False):
-        if not self.current_tag_ready: return
+        """读取 NFC 标签数据"""
+        if not self.current_tag_ready:
+            return
         conn = self.get_conn()
-        if not conn: return
-        data_map = {} 
+        if not conn:
+            return
+        data_map = {}
         try:
             conn.connect()
-            
             if self.debug_mode:
                 self.log("SYSTEM", ">>> 启动全寄存器协议扫描 <<<", "#569CD6")
-            
-            for p in range(4, 32): 
+
+            for p in range(4, 32):
                 QApplication.processEvents()
                 res, sw1, _ = conn.transmit([0xFF, 0xB0, 0x00, p, 0x04])
                 if sw1 == 0x90:
                     data_map[p] = res
                     if self.debug_mode:
                         h = " ".join([f"{b:02X}" for b in res])
-                        a = "".join([chr(b) if 32<=b<=126 else "." for b in res])
+                        a = "".join([chr(b) if 32 <= b <= 126 else "." for b in res])
                         self.log(f"PAGE {p:02d}", f"{h}  |  {a}", "#CE9178")
 
+            # 协议激活检测
             if 4 not in data_map or data_map[4] != [0x7B, 0x00, 0x65, 0x00]:
                 self.log("STATUS", "检测到空白标签或格式未激活", "#E06C75")
                 return
@@ -309,13 +344,13 @@ class AnycubicRFIDTool(QMainWindow):
             while sku_bytes and sku_bytes[-1] == 0x00:
                 sku_bytes.pop()
             sku = "".join([chr(b) for b in sku_bytes if 32 <= b <= 126]).strip()
-            
+
             mat_name = "未知材质"
             for m in FILAMENT_MASTER_DATA:
                 if m["Id"] == sku:
                     mat_name = m["Name"]
                     break
-            
+
             # 2. 解析材质名称 (Page 15-18)
             mat_type_bytes = []
             for p in range(15, 19):
@@ -324,31 +359,51 @@ class AnycubicRFIDTool(QMainWindow):
             while mat_type_bytes and mat_type_bytes[-1] == 0x00:
                 mat_type_bytes.pop()
             read_mat_name = "".join([chr(b) for b in mat_type_bytes if 32 <= b <= 126]).strip()
-            
+
             for m in FILAMENT_MASTER_DATA:
                 if m["Name"] == read_mat_name:
                     mat_name = m["Name"]
                     break
-            
-            # 3. 解析颜色 (Page 20)
+
+            # 3. 解析颜色 (Page 20) - ABGR 格式 (官方文档: FF00FF00 = 绿色)
+            # ABGR 格式: [Alpha] [B] [G] [R]
+            # 使用最接近的颜色匹配 (欧几里得距离)
             color_name = "未知"
             tag_hex = "#FFFFFF"
             if 20 in data_map:
                 c = data_map[20]
-                tag_hex = f"#{c[3]:02X}{c[2]:02X}{c[1]:02X}".upper()  # ABGR -> RGB
+                
+                if c[3] == 0xD4:
+                    # RGB+D4 格式: [R] [G] [B] [D4]
+                    r, g, b = c[0], c[1], c[2]
+                    tag_hex = f"#{r:02X}{g:02X}{b:02X}".upper()
+                elif c[0] == 0xFF:
+                    # ABGR 格式: [FF] [B] [G] [R]
+                    r, g, b = c[3], c[2], c[1]
+                    tag_hex = f"#{r:02X}{g:02X}{b:02X}".upper()
+                else:
+                    # 未知格式，尝试 ABGR
+                    r, g, b = c[2], c[1], c[0]
+                    tag_hex = f"#{r:02X}{g:02X}{b:02X}".upper()
+                
+                # 使用最接近的颜色匹配 (欧几里得距离)
+                best_match = None
+                best_diff = 999999
                 for item in COLOR_DB:
-                    if item['value'].upper() == tag_hex:
-                        color_name = item['name_cn']
-                        break
-            
+                    diff = (r - item['color'][0])**2 + (g - item['color'][1])**2 + (b - item['color'][2])**2
+                    if diff < best_diff:
+                        best_diff = diff
+                        best_match = item['name_cn']
+                color_name = best_match if best_diff <= 50000 else "未知"  # 阈值 ~223 的欧几里得距离
+
             self.log("SUCCESS", f"已识别: 【{mat_name}】 {sku} | 颜色: {color_name} ({tag_hex})", "#98C379")
 
-            # 4. 满盘校验 (Page 30=线径/长度, Page 31=重量)
+            # 4. 满盘校验 (Page 29=线径/长度, Page 30=重量) - 基于实际满盘标签分析
+            # 满盘标识: PAGE 29 长度部分 (字节 2-3) == 4A 01 (330m) 且 PAGE 30 重量 == E8 03 (1000g)
             is_full = False
-            if 30 in data_map and data_map[30][0:4] == [0xAF, 0x00, 0x4A, 0x01]:
-                if 31 in data_map and data_map[31][0:4] == [0xE8, 0x03, 0x00, 0x00]:
+            if 29 in data_map and data_map[29][2:4] == [0x4A, 0x01]:
+                if 30 in data_map and data_map[30][0:2] == [0xE8, 0x03]:
                     is_full = True
-            
             if is_full:
                 self.log("STATUS", "检测结果: 330m (官方满盘格式)", "#98C379")
             else:
@@ -361,54 +416,56 @@ class AnycubicRFIDTool(QMainWindow):
                 self.log("ERROR", f"读取失败: {str(e)}", "#F44747")
 
     def write_tag_logic(self):
-        if not self.current_tag_ready: return
+        """写入 NFC 标签数据"""
+        if not self.current_tag_ready:
+            return
         conn = self.get_conn()
-        if not conn: return
+        if not conn:
+            return
         mat = self.combo_mat.currentData()
         col = self.selected_color_info
         try:
             conn.connect()
-            
+
             # 1. 协议激活 (Page 04)
             conn.transmit([0xFF, 0xD6, 0x00, 0x04, 0x04, 0x7B, 0x00, 0x65, 0x00])
-            
+
             # 2. 写入 SKU (Page 05-09，20字节)
             sku_data = list(mat["Id"].ljust(20, '\x00').encode("ascii"))
             for i in range(5):
                 conn.transmit([0xFF, 0xD6, 0x00, 0x05 + i, 0x04] + sku_data[i*4:(i+1)*4])
-            
             # 3. 写入品牌 (Page 10-13)
             brand_data = list("AC".ljust(16, '\x00').encode("ascii"))
             for i in range(4):
                 conn.transmit([0xFF, 0xD6, 0x00, 0x0A + i, 0x04] + brand_data[i*4:(i+1)*4])
-            
+
             # 4. 写入材质名称 (Page 15-18)
             mat_data = list(mat["Name"].ljust(16, '\x00').encode("ascii"))
             for i in range(4):
                 conn.transmit([0xFF, 0xD6, 0x00, 0x0F + i, 0x04] + mat_data[i*4:(i+1)*4])
 
-            # 5. 写入颜色数据 (Page 20) [Alpha][B][G][R] - ABGR格式
+            # 5. 写入颜色数据 (Page 20) [Alpha] [B] [G] [R] - ABGR 格式 (官方文档: FF00FF00 = 绿色)
             r, g, b = int(col['value'][1:3], 16), int(col['value'][3:5], 16), int(col['value'][5:7], 16)
-            conn.transmit([0xFF, 0xD6, 0x00, 0x14, 0x04, 0xFF, b, g, r]) 
+            conn.transmit([0xFF, 0xD6, 0x00, 0x14, 0x04, 0xFF, b, g, r])
 
             # 6. 写入挤出机温度 (Page 24) [小端字节序]
             conn.transmit([0xFF, 0xD6, 0x00, 0x18, 0x04, 0xC8, 0x00, 0xD2, 0x00])
 
-            # 7. 写入热床温度 (Page 29) [小端字节序]
-            # 32 00 3C 00 代表 50-60°C
-            conn.transmit([0xFF, 0xD6, 0x00, 0x1D, 0x04, 0x32, 0x00, 0x3C, 0x00])
+            # 7. 写入热床温度 (Page 28) [小端字节序]
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1C, 0x04, 0x32, 0x00, 0x3C, 0x00])
 
-            # 8. 写入线径与长度 (Page 30) [小端字节序]
-            # AF 00 = 1.75mm, 4A 01 = 330m
-            conn.transmit([0xFF, 0xD6, 0x00, 0x1E, 0x04, 0xAF, 0x00, 0x4A, 0x01]) 
+            # 8. 写入线径与长度 (Page 29) [小端字节序]
+            # AF 00 = 1.75mm, 4A 01 = 330m (官方满盘格式)
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1D, 0x04, 0xAF, 0x00, 0x4A, 0x01])
 
-            # 9. 写入未知参数 (Page 31)
-            # E8 03 00 00 代表 1000
-            conn.transmit([0xFF, 0xD6, 0x00, 0x1F, 0x04, 0xE8, 0x03, 0x00, 0x00])
+            # 9. 写入重量 (Page 30)
+            # E8 03 00 00 代表 1000g
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1E, 0x04, 0xE8, 0x03, 0x00, 0x00])
 
             self.log("SUCCESS", "已按照官方 Dump 修正地址偏移，参数注入成功", "#98C379")
         except Exception as e:
             self.log("ERROR", f"写入失败: {e}", "#F44747")
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
