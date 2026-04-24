@@ -89,11 +89,11 @@ class AnycubicRFIDTool(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Anycubic ACE RFID Manager")
-        self.setFixedSize(500, 920) # 稍微调高一点 UI 高度
+        self.setFixedSize(500, 920)
         self.setStyleSheet("background-color: #FFFFFF;")
         self.is_auto_reading = False 
         self.selected_color_info = {"name_cn": "未选择", "value": "#FFFFFF"}
-        self.debug_mode = False # 默认不开启
+        self.debug_mode = False
         self.current_tag_ready = False
         self.setup_ui()
         self.worker = RFIDWorker()
@@ -193,7 +193,6 @@ class AnycubicRFIDTool(QMainWindow):
         action_lay.addWidget(self.btn_write)
         main_lay.addLayout(action_lay)
 
-        # 日志头部栏（含 Debug 开关）
         log_h = QHBoxLayout()
         log_h.addWidget(QLabel("操作实时反馈", styleSheet=label_style))
         log_h.addStretch()
@@ -285,8 +284,6 @@ class AnycubicRFIDTool(QMainWindow):
         try:
             conn.connect()
             
-            # --- 优化点 1：只有明确开启 debug_mode 才会打印扫描起始 ---
-            # 删掉了 manual 判断，这样手动读取时界面也会很干净
             if self.debug_mode:
                 self.log("SYSTEM", ">>> 启动全寄存器协议扫描 <<<", "#569CD6")
             
@@ -295,52 +292,61 @@ class AnycubicRFIDTool(QMainWindow):
                 res, sw1, _ = conn.transmit([0xFF, 0xB0, 0x00, p, 0x04])
                 if sw1 == 0x90:
                     data_map[p] = res
-                    # 只有开启 Debug 才打印详细寄存器数据
                     if self.debug_mode:
                         h = " ".join([f"{b:02X}" for b in res])
                         a = "".join([chr(b) if 32<=b<=126 else "." for b in res])
                         self.log(f"PAGE {p:02d}", f"{h}  |  {a}", "#CE9178")
 
-            # --- 关键检测：识别码校验 ---
             if 4 not in data_map or data_map[4] != [0x7B, 0x00, 0x65, 0x00]:
                 self.log("STATUS", "检测到空白标签或格式未激活", "#E06C75")
                 return
 
-            # --- 正常解析逻辑 ---
-            # 1. 解析 SKU
-            sku = "".join([chr(b) for p in [5,6,7] for b in data_map.get(p, []) if 32<=b<=126]).strip()
+            # 1. 解析 SKU (Page 5-9 共20字节)
+            sku_bytes = []
+            for p in range(5, 10):
+                if p in data_map:
+                    sku_bytes.extend(data_map[p])
+            while sku_bytes and sku_bytes[-1] == 0x00:
+                sku_bytes.pop()
+            sku = "".join([chr(b) for b in sku_bytes if 32 <= b <= 126]).strip()
             
-            # 反查材质名称
             mat_name = "未知材质"
             for m in FILAMENT_MASTER_DATA:
                 if m["Id"] == sku:
                     mat_name = m["Name"]
                     break
             
-            # 2. 解析颜色
+            # 2. 解析材质名称 (Page 15-18)
+            mat_type_bytes = []
+            for p in range(15, 19):
+                if p in data_map:
+                    mat_type_bytes.extend(data_map[p])
+            while mat_type_bytes and mat_type_bytes[-1] == 0x00:
+                mat_type_bytes.pop()
+            read_mat_name = "".join([chr(b) for b in mat_type_bytes if 32 <= b <= 126]).strip()
+            
+            for m in FILAMENT_MASTER_DATA:
+                if m["Name"] == read_mat_name:
+                    mat_name = m["Name"]
+                    break
+            
+            # 3. 解析颜色 (Page 20)
             color_name = "未知"
             tag_hex = "#FFFFFF"
-            if 19 in data_map:
-                c = data_map[19]
-                tag_hex = f"#{c[3]:02X}{c[2]:02X}{c[1]:02X}".upper()
+            if 20 in data_map:
+                c = data_map[20]
+                tag_hex = f"#{c[3]:02X}{c[2]:02X}{c[1]:02X}".upper()  # ABGR -> RGB
                 for item in COLOR_DB:
                     if item['value'].upper() == tag_hex:
                         color_name = item['name_cn']
                         break
             
-            # --- 优化点 2：统一成功信息输出，删掉 PARAMS 温度输出 ---
             self.log("SUCCESS", f"已识别: 【{mat_name}】 {sku} | 颜色: {color_name} ({tag_hex})", "#98C379")
 
-            # --- 3. 解析物理参数 (已移除温度 log，仅做内部校验) ---
-            # if 23 in data_map:
-            #     t = data_map[23]
-            #     # self.log("PARAMS", f"喷嘴温度: {t[0]}°C - {t[2]}°C", "#61AFEF") # 彻底注释
-
-            # 4. 长度与容量校验
+            # 4. 满盘校验 (Page 30=线径/长度, Page 31=重量)
             is_full = False
-            # 校验 Page 29 和 Page 30 是否符合 330m/100% 的特征码
-            if 29 in data_map and data_map[29][2:4] == [0x4A, 0x01]:
-                if 30 in data_map and data_map[30][0:2] == [0xE8, 0x03]:
+            if 30 in data_map and data_map[30][0:4] == [0xAF, 0x00, 0x4A, 0x01]:
+                if 31 in data_map and data_map[31][0:4] == [0xE8, 0x03, 0x00, 0x00]:
                     is_full = True
             
             if is_full:
@@ -349,7 +355,6 @@ class AnycubicRFIDTool(QMainWindow):
                 self.log("WARN", "检测结果: 非满盘或长度校验不匹配", "#E06C75")
 
         except Exception as e:
-            # 增加对 T1 协议重置错误的静默处理（可选）
             if "0x80100068" in str(e):
                 self.log("HARDWARE", "读取中断，请保持标签静止", "#FFA500")
             else:
@@ -364,39 +369,44 @@ class AnycubicRFIDTool(QMainWindow):
         try:
             conn.connect()
             
-            # 1. 协议激活 (Page 04) [cite: 4, 22]
+            # 1. 协议激活 (Page 04)
             conn.transmit([0xFF, 0xD6, 0x00, 0x04, 0x04, 0x7B, 0x00, 0x65, 0x00])
             
-            # 2. 写入 SKU (Page 05-07) [cite: 22]
-            sku_b = list(mat["Id"].ljust(12, '\x00').encode("ascii"))
-            for i in range(3):
-                conn.transmit([0xFF, 0xD6, 0x00, 0x05 + i, 0x04] + sku_b[i*4:(i+1)*4])
+            # 2. 写入 SKU (Page 05-09，20字节)
+            sku_data = list(mat["Id"].ljust(20, '\x00').encode("ascii"))
+            for i in range(5):
+                conn.transmit([0xFF, 0xD6, 0x00, 0x05 + i, 0x04] + sku_data[i*4:(i+1)*4])
             
-            # 3. 写入品牌 (Page 0A) 与 材质名称 (Page 0E) [cite: 23, 25]
-            conn.transmit([0xFF, 0xD6, 0x00, 0x0A, 0x04, 0x41, 0x6E, 0x79, 0x63]) # "Anyc"
-            conn.transmit([0xFF, 0xD6, 0x00, 0x0E, 0x04] + list(mat["Name"].ljust(4, '\x00').encode("ascii"))[:4])
+            # 3. 写入品牌 (Page 10-13)
+            brand_data = list("AC".ljust(16, '\x00').encode("ascii"))
+            for i in range(4):
+                conn.transmit([0xFF, 0xD6, 0x00, 0x0A + i, 0x04] + brand_data[i*4:(i+1)*4])
+            
+            # 4. 写入材质名称 (Page 15-18)
+            mat_data = list(mat["Name"].ljust(16, '\x00').encode("ascii"))
+            for i in range(4):
+                conn.transmit([0xFF, 0xD6, 0x00, 0x0F + i, 0x04] + mat_data[i*4:(i+1)*4])
 
-            # 4. 写入颜色数据 (官方 Dump 显示在 Page 13 [0x13]) [cite: 9, 27]
+            # 5. 写入颜色数据 (Page 20) [Alpha][B][G][R] - ABGR格式
             r, g, b = int(col['value'][1:3], 16), int(col['value'][3:5], 16), int(col['value'][5:7], 16)
-            conn.transmit([0xFF, 0xD6, 0x00, 0x13, 0x04, 0xFF, b, g, r]) 
+            conn.transmit([0xFF, 0xD6, 0x00, 0x14, 0x04, 0xFF, b, g, r]) 
 
-            # 5. 写入喷嘴温度 (官方在 Page 17 [0x17]) [cite: 10, 28]
-            # 数据: C8 00 D2 00 代表 200-210°C
-            conn.transmit([0xFF, 0xD6, 0x00, 0x17, 0x04, 0xC8, 0x00, 0xD2, 0x00])
+            # 6. 写入挤出机温度 (Page 24) [小端字节序]
+            conn.transmit([0xFF, 0xD6, 0x00, 0x18, 0x04, 0xC8, 0x00, 0xD2, 0x00])
 
-            # 6. 写入热床温度 (官方在 Page 1C [0x1C]) 
-            # 数据: 32 00 3C 00 代表 50-60°C
-            conn.transmit([0xFF, 0xD6, 0x00, 0x1C, 0x04, 0x32, 0x00, 0x3C, 0x00])
+            # 7. 写入热床温度 (Page 29) [小端字节序]
+            # 32 00 3C 00 代表 50-60°C
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1D, 0x04, 0x32, 0x00, 0x3C, 0x00])
 
-            # 7. 核心修正：线径与满盘长度 (官方在 Page 1D [0x1D]) 
-            # 数据: AF 00 4A 01 代表 1.75mm / 330m
-            conn.transmit([0xFF, 0xD6, 0x00, 0x1D, 0x04, 0xAF, 0x00, 0x4A, 0x01]) 
+            # 8. 写入线径与长度 (Page 30) [小端字节序]
+            # AF 00 = 1.75mm, 4A 01 = 330m
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1E, 0x04, 0xAF, 0x00, 0x4A, 0x01]) 
 
-            # 8. 核心修正：剩余百分比校验 (官方在 Page 1E [0x1E]) 
-            # 数据: E8 03 00 00 代表 1000 (即 100.0%)
-            conn.transmit([0xFF, 0xD6, 0x00, 0x1E, 0x04, 0xE8, 0x03, 0x00, 0x00])
+            # 9. 写入未知参数 (Page 31)
+            # E8 03 00 00 代表 1000
+            conn.transmit([0xFF, 0xD6, 0x00, 0x1F, 0x04, 0xE8, 0x03, 0x00, 0x00])
 
-            self.log("SUCCESS", "已按照原厂 Dump 修正地址偏移，满盘参数注入成功", "#98C379")
+            self.log("SUCCESS", "已按照官方 Dump 修正地址偏移，参数注入成功", "#98C379")
         except Exception as e:
             self.log("ERROR", f"写入失败: {e}", "#F44747")
 
