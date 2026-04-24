@@ -61,24 +61,17 @@ The tool modifies the following **Page (Addr)** addresses on the physical chip. 
 
 ### 4.1 地址定义 | Address Definition
 
-| 地址 (Addr) | 十六进制示例 | 功能描述 | 修改逻辑 |
+| 地址 (Addr) | Hex Example | 功能描述 / Function | 修改逻辑 / Logic |
 | :--- | :--- | :--- | :--- |
-| **00 - 02** | `04:EF:9D...` | **UID (唯一标识)** | **只读**。出厂固定。 |
-| **Addr 0 - 2** | `04:EF:9D...` | **UID (Read-Only)** | **Read-Only**. Fixed at factory. |
-| **04 - 07** | `41:48:50...` | **耗材 SKU ID** | 根据所选材质写入。 |
-| **Addr 4 - 7** | `41:48:50...` | **Filament SKU ID** | Written based on selected material. |
-| **14 (0x0E)** | `50:4C:41:00` | **材质类型 (ASCII)** | 核心标识，例如 `PLA\0`。 |
-| **Addr 15 (0x0F)** | `50:4C:41:00` | **Material Type (ASCII)** | Core ID, e.g., `PLA\0`. |
-| **20 (0x14)** | `FF:BB:GG:RR` | **颜色 (ABGR)** | ABGR 格式 (官方文档)，`[Alpha] [B] [G] [R]` |
-| **Addr 20 (0x14)** | `FF:BB:GG:RR` | **Color (ABGR)** | ABGR format (Official), `[Alpha] [B] [G] [R]` |
-| **24 (0x18)** | `C8:00:D2:00` | **喷头温度** | 预设打印温度参数。 |
-| **Addr 24 (0x18)** | `C8:00:D2:00` | **Nozzle Temp** | Preset printing temperatures. |
-| **28 (0x1C)** | `32:00:3C:00` | **热床温度** | 预设热床温度参数。 |
-| **Addr 28 (0x1C)** | `32:00:3C:00` | **Bed Temp** | Preset heated bed temperatures. |
-| **29 (0x1D)** | `AF:00:4A:01` | **线径/长度** | 1.75mm / 330m (满盘标识)。 |
-| **Addr 29 (0x1D)** | `AF:00:4A:01` | **Diameter/Length** | 1.75mm / 330m (Full spool flag). |
-| **30 (0x1E)** | `E8:03:00:00` | **重量** | 1000g (满盘标识)。 |
-| **Addr 30 (0x1E)** | `E8:03:00:00` | **Weight** | 1000g (Full spool flag). |
+| **0 - 2** | `04:EF:9D...` | UID (唯一标识 / Read-Only) | **只读 / Read-Only**。出厂固定 / Fixed at factory. |
+| **4 - 7** | `41:48:50...` | 耗材 SKU ID / Filament SKU ID | 根据所选材质写入 / Written based on selected material. |
+| **15 (0x0F)** | `50:4C:41:00` | 材质类型 (ASCII) / Material Type | 核心标识，例如 `PLA\0` / Core ID, e.g., `PLA\0`. |
+| **20 (0x14)** | `FF:BB:GG:RR` | 颜色 (ABGR) / Color | ABGR 格式 (官方文档) / `[Alpha] [B] [G] [R]` |
+| **24 (0x18)** | `C8:00:D2:00` | 喷头温度 / Nozzle Temp | 预设打印温度参数 / Preset printing temperatures. |
+| **28 (0x1C)** | `32:00:3C:00` | 热床温度 / Bed Temp | 预设热床温度参数 / Preset heated bed temperatures. |
+| **29 (0x1D)** | `AF:00:4A:01` | 线径/长度 / Diameter/Length | 1.75mm / 330m (满盘标识 / Full spool flag). |
+| **30 (0x1E)** | `E8:03:00:00` | 重量 / Weight | 1000g (满盘标识 / Full spool flag). |
+
 
 ### 4.2 满盘检测 | Full Spool Detection
 
